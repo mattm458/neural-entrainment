@@ -183,7 +183,7 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
     for rows in tqdm(
         p.imap_unordered(turn_fn, turns),
         total=len(ipus),
-        desc="Extracting IPUs and IPU features",
+        desc="Extracting turns and turn features",
     ):
         turn_features.extend(rows)
 
