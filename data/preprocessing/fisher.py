@@ -1,3 +1,4 @@
+import csv
 import os
 import re
 from functools import partial
@@ -157,6 +158,31 @@ def normalize(df, features):
     return df_norm
 
 
+def self_tails(df, lengths, base_dir, prefix):
+    files = []
+    for l in lengths:
+        outfile = open(path.join(base_dir, f"self-{prefix}-{l}.csv"), "w")
+        writer = csv.writer(outfile)
+        writer.writerow(["ses_id", "speaker"] + [f"x{i}" for i in range(l)] + ["y"])
+        files.append(writer)
+
+    lengths = [x + 1 for x in lengths]
+
+    for ses_id, group in tqdm(df.groupby("ses_id")):
+        tail_a = [[] for x in lengths]
+        tail_b = [[] for x in lengths]
+
+        for row_id, row in group.iterrows():
+            tail = tail_a if row.speaker == "A" else tail_b
+
+            for t, l, f in zip(tail, lengths, files):
+                t.append(row_id)
+
+                if len(t) == l:
+                    f.writerow([ses_id, row.speaker] + t)
+                    t.pop(0)
+
+
 def run(dataset_dir, audio_dir, feature_dir, num_processes):
     FEATURES = [
         "pitch_mean",
@@ -170,9 +196,9 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
     ]
 
     wav_dir = path.join(dataset_dir, "wav")
-    ipu_dir = path.join(audio_dir, "ipus2")
-    turn_dir = path.join(audio_dir, "turns2")
-    tail_dir = path.join(feature_dir, "tails2")
+    ipu_dir = path.join(audio_dir, "ipus")
+    turn_dir = path.join(audio_dir, "turns")
+    tail_dir = path.join(feature_dir, "tails")
 
     transcript_paths = get_transcript_paths(dataset_dir)
 
@@ -203,13 +229,15 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
     print("Saving IPU feature data...")
     ipu_csv_filename = path.join(feature_dir, "ipus.csv")
     ipu_norm_csv_filename = path.join(feature_dir, "ipus_norm.csv")
-    ipu_df = pd.DataFrame(ipu_features).sort_values(["ses_id", "start_time"])
+    ipu_df = pd.DataFrame(ipu_features).sort_values(["ses_id", "start_time"]).dropna()
     ipu_df.to_csv(ipu_csv_filename, index=None)
-    ipu_df = pd.read_csv(ipu_csv_filename)
-    ipu_norm_df = normalize(ipu_df, FEATURES)
+    ipu_norm_df = normalize(ipu_df, FEATURES).dropna()
     ipu_norm_df.to_csv(ipu_norm_csv_filename, index=None)
-    turn_fn = partial(process_session, wav_dir=wav_dir, audio_out_dir=turn_dir)
 
+    print("Generating IPU self tails...")
+    self_tails(ipu_norm_df, [1, 5, 10], tail_dir, "ipu")
+
+    turn_fn = partial(process_session, wav_dir=wav_dir, audio_out_dir=turn_dir)
     turn_features = []
     for rows in tqdm(
         p.imap_unordered(turn_fn, turns),
@@ -221,8 +249,11 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
     print("Saving turn feature data...")
     turn_csv_filename = path.join(feature_dir, "turns.csv")
     turn_norm_csv_filename = path.join(feature_dir, "turns_norm.csv")
-    turn_df = pd.DataFrame(turn_features).sort_values(["ses_id", "start_time"])
+    turn_df = pd.DataFrame(turn_features).sort_values(["ses_id", "start_time"]).dropna()
     turn_df.to_csv(turn_csv_filename, index=None)
-    turn_df = pd.read_csv(turn_csv_filename)
-    turn_norm_df = normalize(turn_df, FEATURES)
+    turn_norm_df = normalize(turn_df, FEATURES).dropna()
     turn_norm_df.to_csv(turn_norm_csv_filename, index=None)
+    turn_norm_df = pd.read_csv(turn_norm_csv_filename)
+
+    print("Generating turn self tails...")
+    self_tails(turn_norm_df, [1, 5, 10], tail_dir, "turn")
