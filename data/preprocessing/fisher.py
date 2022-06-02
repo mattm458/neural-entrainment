@@ -4,11 +4,10 @@ from functools import partial
 from multiprocessing import Pool
 from os import path
 
+import hyphenate
 import pandas as pd
 import parselmouth
 from tqdm import tqdm
-import hyphenate
-
 from util.audio import Timestamp, get_features, ipus_to_turns, nsyl
 from util.fs import makedirs
 
@@ -140,7 +139,36 @@ def process_session(timestamp_data, wav_dir, audio_out_dir):
     return rows
 
 
+def normalize(df, features):
+    features_norm = [f"{x}_norm" for x in features]
+
+    df_norm = df.copy()
+    df_norm[features_norm] = 0.0
+
+    for _, group in tqdm(
+        df_norm.groupby(["ses_id", "speaker"]), desc="Computing feature norms..."
+    ):
+        mean = group[features].mean()
+        std = group[features].std()
+        df_norm.loc[group.index, features_norm] = (
+            (group[features] - mean) / std
+        ).values
+
+    return df_norm
+
+
 def run(dataset_dir, audio_dir, feature_dir, num_processes):
+    FEATURES = [
+        "pitch_mean",
+        "pitch_range",
+        "intensity_mean",
+        "jitter",
+        "shimmer",
+        "nhr",
+        "duration",
+        "rate",
+    ]
+
     wav_dir = path.join(dataset_dir, "wav")
     ipu_dir = path.join(audio_dir, "ipus2")
     turn_dir = path.join(audio_dir, "turns2")
@@ -174,11 +202,14 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
 
     print("Saving IPU feature data...")
     ipu_csv_filename = path.join(feature_dir, "ipus.csv")
-    pd.DataFrame(ipu_features).sort_values(["ses_id", "start_time"]).to_csv(
-        ipu_csv_filename, index=None
-    )
-
+    ipu_norm_csv_filename = path.join(feature_dir, "ipus_norm.csv")
+    ipu_df = pd.DataFrame(ipu_features).sort_values(["ses_id", "start_time"])
+    ipu_df.to_csv(ipu_csv_filename, index=None)
+    ipu_df = pd.read_csv(ipu_csv_filename)
+    ipu_norm_df = normalize(ipu_df, FEATURES)
+    ipu_norm_df.to_csv(ipu_norm_csv_filename, index=None)
     turn_fn = partial(process_session, wav_dir=wav_dir, audio_out_dir=turn_dir)
+
     turn_features = []
     for rows in tqdm(
         p.imap_unordered(turn_fn, turns),
@@ -189,6 +220,9 @@ def run(dataset_dir, audio_dir, feature_dir, num_processes):
 
     print("Saving turn feature data...")
     turn_csv_filename = path.join(feature_dir, "turns.csv")
-    pd.DataFrame(turn_features).sort_values(["ses_id", "start_time"]).to_csv(
-        turn_csv_filename, index=None
-    )
+    turn_norm_csv_filename = path.join(feature_dir, "turns_norm.csv")
+    turn_df = pd.DataFrame(turn_features).sort_values(["ses_id", "start_time"])
+    turn_df.to_csv(turn_csv_filename, index=None)
+    turn_df = pd.read_csv(turn_csv_filename)
+    turn_norm_df = normalize(turn_df, FEATURES)
+    turn_norm_df.to_csv(turn_norm_csv_filename, index=None)
