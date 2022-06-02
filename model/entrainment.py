@@ -15,13 +15,10 @@ class FixedHistoryEntrainmentModel(pl.LightningModule):
 
         self.lr = lr
 
-        self.rnn = nn.LSTM(rnn_in_dim, rnn_out_dim)
+        self.rnn = nn.LSTM(rnn_in_dim, rnn_out_dim, batch_first=True)
         self.linear = torch.nn.Linear(rnn_out_dim, out_dim)
 
     def forward(self, X):
-        if self.variable_batch_size:
-            X = nn.utils.rnn.pack_padded_sequence(X)
-
         _, (h, _) = self.rnn(X)
         h = h[-1]
 
@@ -33,7 +30,7 @@ class FixedHistoryEntrainmentModel(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def training_step(self, batch, batch_idx):
-        X, y = batch
+        speaker, X, y = batch
         y_pred = self(X)
 
         loss = F.mse_loss(y_pred, y)
@@ -43,7 +40,7 @@ class FixedHistoryEntrainmentModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        X, y = batch
+        speaker, X, y = batch
         y_pred = self(X)
 
         loss = F.smooth_l1_loss(y_pred, y)
@@ -53,7 +50,7 @@ class FixedHistoryEntrainmentModel(pl.LightningModule):
         return loss
 
     def predict_step(self, batch):
-        X, y = batch
+        speaker, X, y = batch
         y_pred = self(X)
 
         return y_pred

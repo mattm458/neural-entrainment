@@ -48,14 +48,22 @@ if __name__ == "__main__":
     train_parser = subparsers.add_parser("train", help="Train an entrainer")
     train_parser.add_argument("--tail-length", type=int, required=True)
     train_parser.add_argument(
-        "--history", type=str, choices=["speaker", "partner", "both"], required=True
+        "--history", type=str, choices=["self", "partner", "both"], required=True
     )
     train_parser.add_argument(
         "--attention", action=argparse.BooleanOptionalAction, required=True
     )
     train_parser.add_argument("--corpus-dir", type=str, required=True)
+    train_parser.add_argument(
+        "--feature-dir",
+        type=str,
+        help="The directory that contains extracted features",
+        required=True,
+    )
     train_parser.add_argument("--epochs", type=int, required=True)
     train_parser.add_argument("--batch-size", type=int, required=True)
+    train_parser.add_argument("--gpu", type=int, required=True)
+    train_parser.add_argument("--output-features", type=str, required=True)
 
     args = parser.parse_args()
 
@@ -70,6 +78,13 @@ if __name__ == "__main__":
             num_processes=args.processes,
         )
     else:
-        print(args)
+        from train import train
 
-        FixedHistoryEntrainmentModel(has_attention=False)
+        train(
+            feature_dir=args.feature_dir,
+            history=args.history,
+            tail_length=args.tail_length,
+            batch_size=args.batch_size,
+            gpu=args.gpu,
+            output_features=[args.output_features],
+        )
