@@ -1,3 +1,5 @@
+lightning_logs/
+
 # Exclude datasets we don't own
 data/fisher
 data/switchboard
