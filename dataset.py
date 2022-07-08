@@ -11,12 +11,13 @@ class ConversationDataset(Dataset):
         self,
         df,
         idxs,
-        X_features,
+        features,
         target,
         mels=False,
         mels_dir=None,
         word_embeddings=False,
         embeddings_dir=None,
+        include_transcript=False
     ):
         super().__init__()
 
@@ -39,8 +40,10 @@ class ConversationDataset(Dataset):
         self.df = df
         self.idxs = idxs
 
-        self.X_features = X_features
+        self.features = features
         self.target = target
+
+        self.include_transcript=include_transcript
 
     def __len__(self):
         return len(self.idxs)
@@ -49,24 +52,15 @@ class ConversationDataset(Dataset):
         ses_id = self.idxs[idx]
         X_data = self.df.loc[ses_id]
 
-        X_features = torch.FloatTensor(X_data[self.X_features].values)
-        y_features = torch.FloatTensor(X_data[self.target].values)
+        features = torch.FloatTensor(X_data[self.features].values)
         speaker = torch.FloatTensor(
             [[1, 0] if x == "A" else [0, 1] for x in X_data["speaker"].values]
         )
 
-        X_features = X_features[:-1]
-        X_speaker = speaker[:-1]
-        y_features = y_features[1:]
-        y_speaker = speaker[1:]
-
         output = dict()
-        output["X_features"] = X_features
-        output["X_speaker"] = X_speaker
-        output["X_features_len"] = torch.LongTensor([len(X_features)])
-        output["y_features"] = y_features
-        output["y_speaker"] = y_speaker
-        output["y_features_len"] = torch.LongTensor([len(y_features)])
+        output["features"] = features
+        output["speaker"] = speaker
+        output["features_len"] = torch.LongTensor([len(features)])
 
         if self.mels:
             mels = torch.load(path.join(self.mels_dir, f"{ses_id}-mels-cat.pt"))
@@ -95,6 +89,9 @@ class ConversationDataset(Dataset):
             output["embeddings"] = embeddings
             output["embeddings_len"] = embeddings_len
 
+        if self.include_transcript:
+            output['transcript'] = X_data.transcript.tolist()
+
         return output
 
 
@@ -102,12 +99,9 @@ def collate_fn(batch):
     collated = defaultdict(list)
 
     for x in batch:
-        collated["X_features"].append(x["X_features"])
-        collated["X_speaker"].append(x["X_speaker"])
-        collated["X_features_len"].append(x["X_features_len"])
-        collated["y_features"].append(x["y_features"])
-        collated["y_speaker"].append(x["y_speaker"])
-        collated["y_features_len"].append(x["y_features_len"])
+        collated["features"].append(x["features"])
+        collated["speaker"].append(x["speaker"])
+        collated["features_len"].append(x["features_len"])
 
         if "mels" in x:
             collated["mels"].append(x["mels"])
@@ -116,21 +110,17 @@ def collate_fn(batch):
         if "embeddings" in x:
             collated["embeddings"].append(x["embeddings"])
             collated["embeddings_len"].append(x["embeddings_len"])
+        
+        if 'transcript' in x:
+            collated['transcript'].append(x['transcript'])
 
-    collated["X_features"] = nn.utils.rnn.pad_sequence(
-        collated["X_features"], batch_first=True
+    collated["features"] = nn.utils.rnn.pad_sequence(
+        collated["features"], batch_first=True
     )
-    collated["X_speaker"] = nn.utils.rnn.pad_sequence(
-        collated["X_speaker"], batch_first=True
+    collated["speaker"] = nn.utils.rnn.pad_sequence(
+        collated["speaker"], batch_first=True
     )
-    collated["X_features_len"] = torch.LongTensor(collated["X_features_len"])
-    collated["y_features"] = nn.utils.rnn.pad_sequence(
-        collated["y_features"], batch_first=True
-    )
-    collated["y_speaker"] = nn.utils.rnn.pad_sequence(
-        collated["y_speaker"], batch_first=True
-    )
-    collated["y_features_len"] = torch.LongTensor(collated["y_features_len"])
+    collated["features_len"] = torch.LongTensor(collated["features_len"])
 
     if "mels" in collated:
         collated["mels"] = nn.utils.rnn.pad_sequence(collated["mels"], batch_first=True)
@@ -145,5 +135,7 @@ def collate_fn(batch):
         collated["embeddings_len"] = nn.utils.rnn.pad_sequence(
             collated["embeddings_len"], batch_first=True, padding_value=1
         )
+    
+
 
     return dict(collated)

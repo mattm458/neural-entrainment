@@ -69,6 +69,65 @@ class Attention(nn.Module):
         return att_applied, score_out
 
 
+class EmbeddingEncoder(nn.Module):
+    def __init__(
+        self,
+        embedding_dim,
+        embedding_encoder_out_dim,
+        embedding_encoder_dropout,
+        embedding_attention_dim,
+    ):
+        super().__init__()
+
+        lstm_out_dim = embedding_encoder_out_dim // 2
+
+        self.embedding_encoder = nn.LSTM(
+            embedding_dim,
+            lstm_out_dim,
+            bidirectional=True,
+            num_layers=2,
+            dropout=embedding_encoder_dropout,
+            batch_first=True,
+        )
+
+        self.embedding_attention = Attention(
+            history_in_dim=embedding_encoder_out_dim,
+            latest_in_dim=embedding_encoder_out_dim,
+            att_dim=embedding_attention_dim,
+        )
+
+    def forward(self, embedding_input, embedding_len, device):
+        batch_size = embedding_input.shape[0]
+
+        embedding_encoder_input = nn.utils.rnn.pack_padded_sequence(
+            embedding_input,
+            embedding_len.cpu(),
+            batch_first=True,
+            enforce_sorted=False,
+        )
+
+        embedding_encoder_output, (embedding_h, _) = self.embedding_encoder(
+            embedding_encoder_input
+        )
+
+        # Dimensions: layers, directions, batch, hidden size
+        embedding_h = embedding_h.view(2, 2, batch_size, -1)
+        embedding_h = embedding_h[1].swapaxes(0, 1).reshape(batch_size, -1)
+
+        embedding_encoder_output, _ = nn.utils.rnn.pad_packed_sequence(
+            embedding_encoder_output, batch_first=True
+        )
+
+        embedding_mask = torch.arange(embedding_len.max(), device=device)
+        embedding_mask = embedding_mask.unsqueeze(0).repeat(len(embedding_len), 1)
+        embedding_mask = embedding_mask >= embedding_len.unsqueeze(1)
+        embedding_mask = embedding_mask.unsqueeze(2)
+
+        return self.embedding_attention(
+            embedding_encoder_output, embedding_h, embedding_mask
+        )
+
+
 class Decoder(nn.Module):
     def __init__(self, in_dim, hidden_dim, num_layers=2, dropout=0.0):
         super().__init__()
