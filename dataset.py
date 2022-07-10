@@ -17,7 +17,7 @@ class ConversationDataset(Dataset):
         mels_dir=None,
         word_embeddings=False,
         embeddings_dir=None,
-        include_transcript=False
+        include_transcript=False,
     ):
         super().__init__()
 
@@ -43,7 +43,7 @@ class ConversationDataset(Dataset):
         self.features = features
         self.target = target
 
-        self.include_transcript=include_transcript
+        self.include_transcript = include_transcript
 
     def __len__(self):
         return len(self.idxs)
@@ -53,8 +53,10 @@ class ConversationDataset(Dataset):
         X_data = self.df.loc[ses_id]
 
         features = torch.FloatTensor(X_data[self.features].values)
+
+        first_speaker = X_data.iloc[0].speaker
         speaker = torch.FloatTensor(
-            [[1, 0] if x == "A" else [0, 1] for x in X_data["speaker"].values]
+            [[1, 0] if x == first_speaker else [0, 1] for x in X_data.speaker.values]
         )
 
         output = dict()
@@ -90,7 +92,7 @@ class ConversationDataset(Dataset):
             output["embeddings_len"] = embeddings_len
 
         if self.include_transcript:
-            output['transcript'] = X_data.transcript.tolist()
+            output["transcript"] = X_data.transcript.tolist()
 
         return output
 
@@ -110,9 +112,9 @@ def collate_fn(batch):
         if "embeddings" in x:
             collated["embeddings"].append(x["embeddings"])
             collated["embeddings_len"].append(x["embeddings_len"])
-        
-        if 'transcript' in x:
-            collated['transcript'].append(x['transcript'])
+
+        if "transcript" in x:
+            collated["transcript"].append(x["transcript"])
 
     collated["features"] = nn.utils.rnn.pad_sequence(
         collated["features"], batch_first=True
@@ -135,7 +137,5 @@ def collate_fn(batch):
         collated["embeddings_len"] = nn.utils.rnn.pad_sequence(
             collated["embeddings_len"], batch_first=True, padding_value=1
         )
-    
-
 
     return dict(collated)
