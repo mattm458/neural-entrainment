@@ -1,8 +1,3 @@
-import os
-
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
 from os import path
 
 import pandas as pd
@@ -37,7 +32,7 @@ if __name__ == "__main__":
     df_turns = df_turns.set_index("ses_id")
 
     idxs, test_idx = train_test_split(
-        list(df_turns.index.unique()), train_size=0.90, random_state=9001
+        list(df_turns.index.unique()), train_size=0.80, random_state=9001
     )
     test_idx, val_idx = train_test_split(test_idx, test_size=0.5, random_state=9001)
 
@@ -79,17 +74,6 @@ if __name__ == "__main__":
         collate_fn=collate_fn,
         pin_memory=True,
     )
-
-    # test_dataloader = DataLoader(
-    #     test_dataset,
-    #     batch_size=batch_size,
-    #     shuffle=False,
-    #     drop_last=False,
-    #     num_workers=8,
-    #     persistent_workers=True,
-    #     collate_fn=collate_fn,
-    #     pin_memory=True,
-    # )
 
     val_dataloader = DataLoader(
         val_dataset,
