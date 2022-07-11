@@ -1,3 +1,4 @@
+import argparse
 from os import path
 
 import pandas as pd
@@ -9,10 +10,29 @@ from dataset import ConversationDataset, collate_fn
 from model.entrainment import EntrainmentModel
 
 if __name__ == "__main__":
-    tail_length = -1
+    parser = argparse.ArgumentParser(
+        description="A model for predicting entrainment behavior in conversations.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    general_parser = parser.add_argument_group("General options")
+    general_parser.add_argument(
+        "--embeddings-dir",
+        required=False,
+        help="The base directory containing precomputed word embeddings from the corpus transcript.",
+        type=str,
+    )
+    general_parser.add_argument(
+        "--feature-dir",
+        required=True,
+        help="The base directory containing extracted features.",
+        type=str,
+    )
+
+    args = parser.parse_args()
+
     history = "self"
     attention = False
-    corpus_dir = "/home/mmcneil/datasets/fisher_corpus"
     epochs = 10
     input_features = [
         "pitch_mean_norm",
@@ -24,11 +44,10 @@ if __name__ == "__main__":
         "rate_norm",
     ]
     output_features = input_features  # ["intensity_mean_norm"]  # input_features
-    feature_dir = "data/fisher"
 
     feature_idx = dict((v, k) for (k, v) in enumerate(input_features))
 
-    df_turns = pd.read_csv(path.join(feature_dir, "turns_norm.csv"))
+    df_turns = pd.read_csv(path.join(args.feature_dir, "turns_norm.csv"))
     df_turns = df_turns.set_index("ses_id")
 
     idxs, test_idx = train_test_split(
@@ -44,7 +63,7 @@ if __name__ == "__main__":
         input_features,
         output_features,
         word_embeddings=True,
-        embeddings_dir="/home/mmcneil/datasets/fisher_corpus/turns_glove",
+        embeddings_dir=args.embeddings_dir,
     )
 
     val_dataset = ConversationDataset(
@@ -53,7 +72,7 @@ if __name__ == "__main__":
         input_features,
         output_features,
         word_embeddings=True,
-        embeddings_dir="/home/mmcneil/datasets/fisher_corpus/turns_glove",
+        embeddings_dir=args.embeddings_dir,
     )
 
     train_dataloader = DataLoader(
