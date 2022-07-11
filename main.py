@@ -46,14 +46,6 @@ if __name__ == "__main__":
         word_embeddings=True,
         embeddings_dir="/home/mmcneil/datasets/fisher_corpus/turns_glove",
     )
-    test_dataset = ConversationDataset(
-        df_turns,
-        test_idx,
-        input_features,
-        output_features,
-        word_embeddings=True,
-        embeddings_dir="/home/mmcneil/datasets/fisher_corpus/turns_glove",
-    )
 
     val_dataset = ConversationDataset(
         df_turns,
