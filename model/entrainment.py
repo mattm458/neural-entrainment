@@ -165,6 +165,7 @@ class EntrainmentModel(pl.LightningModule):
         )
 
         if len(pred_idxs) == 0:
+            att_scores["feature"] = torch.zeros((batch_size, i + 1, 1))
             return (
                 output,
                 att_scores,
@@ -191,7 +192,12 @@ class EntrainmentModel(pl.LightningModule):
             feature_attention_input,
             feature_mask[pred_idxs, : i + 1],
         )
-        att_scores["feature"] = feature_scores
+
+        feature_scores_expanded = torch.zeros(
+            (batch_size, i + 1, 1), device=self.device
+        )
+        feature_scores_expanded[pred_idxs] = feature_scores
+        att_scores["feature"] = feature_scores_expanded
 
         # Step 2: Decoder
         # ------------------------------------------------------------------------
@@ -350,6 +356,16 @@ class EntrainmentModel(pl.LightningModule):
         self.log("val_loss", loss, on_epoch=True, on_step=False)
 
         return loss
+
+    def predict_step(self, batch, batch_idx):
+        return self.sequence(
+            batch["features"],
+            batch["features_len"],
+            batch["speaker"],
+            batch["embeddings"],
+            batch["embeddings_len"],
+            teacher_forcing=0.0,
+        )
 
     def training_step(self, batch, batch_idx):
         outputs, pred_us, attention_scores = self.sequence(
