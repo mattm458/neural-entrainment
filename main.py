@@ -98,7 +98,7 @@ if __name__ == "__main__":
     )
 
     model = EntrainmentModel(
-        lr=0.0001,
+        lr=0.001,  # 0.0001,
         feature_dim=7,
         feature_encoder_out_dim=256,
         feature_encoder_dropout=0.5,
@@ -115,6 +115,7 @@ if __name__ == "__main__":
         embedding_encoder_dropout=0.5,
         embedding_attention_dim=128,
         teacher_forcing=0.5,
+        lookahead_embedding_encoder=False,
     )
 
     trainer = pl.Trainer(

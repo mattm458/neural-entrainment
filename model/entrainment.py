@@ -30,6 +30,7 @@ class EntrainmentModel(pl.LightningModule):
         embedding_encoder_dropout=None,
         embedding_attention_dim=None,
         teacher_forcing=0.5,
+        lookahead_embedding_encoder=False,
     ):
         super().__init__()
 
@@ -91,6 +92,16 @@ class EntrainmentModel(pl.LightningModule):
                 embedding_attention_dim,
             )
 
+            if lookahead_embedding_encoder:
+                self.lookahead_embedding_encoder = EmbeddingEncoder(
+                    embedding_dim,
+                    embedding_encoder_out_dim,
+                    embedding_encoder_dropout,
+                    embedding_attention_dim,
+                )
+
+            self.has_lookahead_embedding_encoder = lookahead_embedding_encoder
+
         self.decoder = Decoder(
             feature_encoder_out_dim + embedding_encoder_out_dim,
             decoder_out_dim,
@@ -148,8 +159,16 @@ class EntrainmentModel(pl.LightningModule):
 
             # If we are looking ahead to word embeddings from the turn we are currently
             # predicting, compute those here
+            lookahead_embedding_encoder = (
+                self.lookahead_embedding_encoder
+                if self.has_lookahead_embedding_encoder
+                else self.embedding_encoder
+            )
             if len(pred_embedding_input) > 0:
-                pred_embedding_output, pred_embedding_scores = self.embedding_encoder(
+                (
+                    pred_embedding_output,
+                    pred_embedding_scores,
+                ) = lookahead_embedding_encoder(
                     pred_embedding_input, pred_embedding_len, self.device
                 )
                 att_scores["pred_embedding"] = pred_embedding_scores
